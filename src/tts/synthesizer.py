@@ -12,8 +12,9 @@ from src.script.generator import ScriptLine
 _ELEVENLABS_TIMEOUT = 120  # seconds — long segments can take 30-60s to generate
 _ELEVENLABS_RETRIES = 3
 
-# ElevenLabs voice settings applied to both hosts for a consistent sound
-_ELEVENLABS_VOICE_SETTINGS = {
+# ElevenLabs voice settings applied to both hosts for a consistent sound.
+# speed is per-host and read from config; remaining settings are shared.
+_ELEVENLABS_VOICE_SETTINGS_BASE = {
     "stability": 0.5,        # 0–1; higher = more consistent, less expressive
     "similarity_boost": 0.8, # 0–1; higher = closer to original voice character
     "style": 0.0,            # 0–1; keep low to avoid over-stylisation
@@ -40,15 +41,21 @@ def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[Aud
     host1_voice = voices.get("host1", "onyx")
     host2_voice = voices.get("host2", "nova")
 
+    speed_config = config.get("tts", {}).get("openai_speed", {})
+    host1_speed = float(speed_config.get("host1", 1.0))
+    host2_speed = float(speed_config.get("host2", 1.0))
+
     segments = []
     for line in script_lines:
         voice = host1_voice if line.speaker == 1 else host2_voice
+        speed = host1_speed if line.speaker == 1 else host2_speed
         response = client.audio.speech.create(
             model="tts-1-hd",
             voice=voice,
             input=line.text,
+            speed=speed,
         )
-        segments.append(AudioSegment.from_file(io.BytesIO(response.content), format="mp3"))
+        segments.append(AudioSegment.from_file(io.BytesIO(response.read()), format="mp3"))
 
     return segments
 
@@ -64,15 +71,13 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
     host2_voice = os.environ.get("ELEVENLABS_HOST2_VOICE_ID") or voices.get("host2", "EXAVITQu4vr4xnSDxMaL")
 
     speed_config = config.get("tts", {}).get("elevenlabs_speed", {})
-    host1_speed = float(speed_config.get("host1", 1.0))
-    host2_speed = float(speed_config.get("host2", 1.0))
-
-    voice_settings = VoiceSettings(**_ELEVENLABS_VOICE_SETTINGS)
+    host1_settings = VoiceSettings(**_ELEVENLABS_VOICE_SETTINGS_BASE, speed=float(speed_config.get("host1", 1.0)))
+    host2_settings = VoiceSettings(**_ELEVENLABS_VOICE_SETTINGS_BASE, speed=float(speed_config.get("host2", 1.0)))
 
     segments = []
     for i, line in enumerate(script_lines):
         voice_id = host1_voice if line.speaker == 1 else host2_voice
-        speed = host1_speed if line.speaker == 1 else host2_speed
+        voice_settings = host1_settings if line.speaker == 1 else host2_settings
         for attempt in range(_ELEVENLABS_RETRIES):
             try:
                 audio_bytes = b"".join(
@@ -80,7 +85,6 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
                         text=line.text,
                         voice_id=voice_id,
                         model_id="eleven_multilingual_v2",
-                        speed=speed,
                         voice_settings=voice_settings,
                     )
                 )

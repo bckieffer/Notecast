@@ -4,8 +4,8 @@ tavily-python==0.7.24
 anthropic
 
 # Script + TTS
-openai
-elevenlabs
+openai>=2.36.0
+elevenlabs>=2.47.0
 
 # Audio assembly (requires system ffmpeg)
 pydub
@@ -16,8 +16,7 @@ feedgen
 
 # Config + CLI
 python-dotenv==1.2.2
-typer==0.12.5
-click==8.1.7   # 8.3.x breaks typer 0.12
+typer>=0.25.1
 PyYAML==6.0.3
 
 # Testing
