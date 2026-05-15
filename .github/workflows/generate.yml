@@ -13,7 +13,7 @@ on:
         default: false
         type: boolean
       tts:
-        description: "TTS provider override (elevenlabs|openai|edge)"
+        description: "TTS provider override (elevenlabs|openai)"
         required: false
         default: ""
         type: string
@@ -51,27 +51,33 @@ jobs:
           AWS_S3_FEED_KEY: ${{ secrets.AWS_S3_FEED_KEY }}
           PODCAST_FEED_BASE_URL: ${{ secrets.PODCAST_FEED_BASE_URL }}
         run: |
-          ARGS="${{ inputs.question }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          if [ -n "${{ inputs.tts }}" ]; then
-            ARGS="$ARGS --tts ${{ inputs.tts }}"
-          fi
-          python src/pipeline.py "$ARGS"
+          ARGS=("${{ inputs.question }}")
+          [[ "${{ inputs.dry_run }}" == "true" ]] && ARGS+=(--dry-run)
+          [[ -n "${{ inputs.tts }}" ]] && ARGS+=(--tts "${{ inputs.tts }}")
+          python -m src.pipeline "${ARGS[@]}"
 
-      - name: Upload output on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pipeline-debug
-          path: output/
-          retention-days: 3
+      - name: Upload brief as workflow summary
+        if: always()
+        run: |
+          if [ -f output/structured_brief.json ]; then
+            echo '## Research Brief' >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat output/structured_brief.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
-      - name: Upload episode
+      - name: Upload episode artifact
         if: success() && inputs.dry_run == false
         uses: actions/upload-artifact@v4
         with:
           name: episode
           path: output/audio/
           retention-days: 7
+
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-debug
+          path: output/
+          retention-days: 3

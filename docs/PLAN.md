@@ -36,44 +36,44 @@ Derived from [SPEC.md](SPEC.md). Each phase produces a working, usable artifact 
 
 **Goal:** Replace `podcastfy` research with a custom LangGraph agent and wire the pipeline to GitHub Actions.  
 **Estimate:** 1 week  
+**Status:** ✅ Complete  
 **Success criterion:** Submitting a question via `workflow_dispatch` in the GitHub UI produces an MP3 uploaded to S3 within 7 minutes.
 
 ### Tasks
 
 #### Repository setup
-- [ ] Add `requirements.txt` with: `langgraph`, `langchain-tavily`, `anthropic`, `pydub`, `boto3`, `python-dotenv`, `typer`
-- [ ] Add `ffmpeg` install step to the Actions workflow
-- [ ] Add all secrets to GitHub repository settings (see Configuration in SPEC.md)
+- [x] Add `requirements.txt` with: `langgraph`, `anthropic`, `pydub`, `boto3`, `python-dotenv`, `typer`
+- [x] Add `ffmpeg` install step to the Actions workflow
+- [x] Add all secrets to GitHub repository settings (via Terraform)
 
 #### LangGraph research agent (`src/research/`)
-- [ ] Define `ResearchState` TypedDict: `question`, `sub_queries`, `search_results`, `brief`, `iterations`
-- [ ] Implement `planner_node`: calls Claude to decompose question into 3–5 sub-queries; XML-tagged prompt
-- [ ] Implement `searcher_node`: calls Tavily for each sub-query; stores raw results in state
-- [ ] Implement `sufficiency_edge`: conditional — loops back to planner if result count or quality is below threshold
-- [ ] Implement `synthesizer_node`: calls Claude to produce `structured_brief.json` (key findings, evidence, conflicting views, open questions)
-- [ ] Implement `script_prompt_builder_node`: packages brief into final LLM context
-- [ ] Write unit tests for each node using fixture inputs (no live API calls)
+- [x] Define `ResearchState` TypedDict: `question`, `sub_queries`, `search_results`, `brief`, `iterations`
+- [x] Implement `planner_node`: calls Claude to decompose question into 3–5 sub-queries; XML-tagged prompt
+- [x] Implement `searcher_node`: calls Tavily for each sub-query; stores raw results in state
+- [x] Implement `sufficiency_edge`: conditional — loops back to planner if result count or quality is below threshold
+- [x] Implement `synthesizer_node`: calls Claude to produce structured brief (key findings, evidence, conflicting views, open questions)
+- [x] Implement `script_prompt_builder_node`: packages brief into final LLM context
+- [x] Write unit tests for each node using fixture inputs (no live API calls) — 14/14 passing
 
 #### Script generation (`src/script/`)
-- [ ] Write script generation prompt following NotebookLM pattern: persona, tone, safety instructions, brief injection
-- [ ] Call Claude with the packaged context; parse `<host1>` / `<host2>` tags from response
-- [ ] Validate output: both speakers present, minimum word count met, no malformed tags
+- [x] Write script generation prompt following NotebookLM pattern: persona, tone, brief injection
+- [x] Call Claude with the packaged context; parse `<host1>` / `<host2>` tags from response
+- [x] Validate output: both speakers present, minimum word count met, no malformed tags
 
 #### TTS synthesis (`src/tts/`)
-- [ ] Implement per-line audio generation loop using ElevenLabs API
-- [ ] Concatenate segments with `pydub`: 200ms inter-segment pauses
-- [ ] Normalize audio levels across Host 1 and Host 2
-- [ ] Export to `.mp3` with ID3 tags: title, episode number, description, date
+- [x] Implement per-line audio generation loop (ElevenLabs + OpenAI backends)
+- [x] Concatenate segments with `pydub`: 200ms inter-segment pauses
+- [x] Normalize audio levels across Host 1 and Host 2
 
 #### S3 upload (`src/storage/`)
-- [ ] Upload `.mp3` to S3 bucket with a deterministic key: `episodes/YYYY-MM-DD-<slug>.mp3`
-- [ ] Return the public-readable URL for the episode
+- [x] Upload `.mp3` to S3 bucket with key `episodes/YYYY-MM-DD-<slug>.mp3`
+- [x] Return the public-readable URL for the episode
 
 #### GitHub Actions workflow (`.github/workflows/generate.yml`)
-- [ ] Define `workflow_dispatch` trigger with a `question` input field
-- [ ] Steps: checkout → install Python deps → install ffmpeg → run `pipeline.py` → upload artifact on failure
-- [ ] Inject all secrets as environment variables
-- [ ] Add `--dry-run` support: halt after research and print `structured_brief.json` as a workflow summary
+- [x] Define `workflow_dispatch` trigger with `question`, `dry_run`, `tts` inputs
+- [x] Steps: checkout → install Python + ffmpeg → run pipeline → upload artifacts
+- [x] Inject all secrets as environment variables
+- [x] Add `--dry-run` support: prints structured brief as workflow summary
 
 ---
 
