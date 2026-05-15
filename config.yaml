@@ -16,7 +16,7 @@ tts:
     host1: "DODLEQrClDo8wCz460ld"  # Lauren — find IDs at elevenlabs.io/voice-library
     host2: "esrHspGYDSfkn5IuPYtJ"  # Erby
   elevenlabs_speed:
-    host1: 1.1   # 0.7–1.2; applied during generation via VoiceSettings
+    host1: 1.2   # 0.7–1.2; applied during generation via VoiceSettings
     host2: 1.0
   openai_voices:
     host1: "onyx"   # onyx | echo | fable | alloy | shimmer
