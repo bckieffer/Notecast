@@ -13,8 +13,8 @@ llm:
 tts:
   provider: "elevenlabs"  # elevenlabs | openai
   elevenlabs_voices:
-    host1: "pNInz6obpgDQGcFmaJgB"  # Adam — find IDs at elevenlabs.io/voice-library
-    host2: "EXAVITQu4vr4xnSDxMaL"  # Bella
+    host1: "DODLEQrClDo8wCz460ld"  # Lauren — find IDs at elevenlabs.io/voice-library
+    host2: "esrHspGYDSfkn5IuPYtJ"  # Erby
   openai_voices:
     host1: "onyx"   # onyx | echo | fable | alloy | shimmer
     host2: "nova"
