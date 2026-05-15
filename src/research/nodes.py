@@ -85,7 +85,12 @@ def searcher_node(state: ResearchState) -> ResearchState:
         if query in already_searched:
             continue
         response = client.search(query=query, max_results=3, search_depth="advanced", days=days)
-        results.append({"query": query, "results": response.get("results", [])})
+        hits = response.get("results", [])
+        if not hits:
+            # No results in the recency window — retry without date filter
+            response = client.search(query=query, max_results=3, search_depth="advanced")
+            hits = response.get("results", [])
+        results.append({"query": query, "results": hits})
 
     return {**state, "search_results": results, "iterations": state.get("iterations", 0) + 1}
 
