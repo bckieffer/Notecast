@@ -1,15 +1,24 @@
 import io
 import os
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 
 from pydub import AudioSegment
-from pydub.effects import normalize
 
 from src.script.generator import ScriptLine
 
 _ELEVENLABS_TIMEOUT = 120  # seconds — long segments can take 30-60s to generate
 _ELEVENLABS_RETRIES = 3
+
+# ElevenLabs voice settings applied to both hosts for a consistent sound
+_ELEVENLABS_VOICE_SETTINGS = {
+    "stability": 0.5,        # 0–1; higher = more consistent, less expressive
+    "similarity_boost": 0.8, # 0–1; higher = closer to original voice character
+    "style": 0.0,            # 0–1; keep low to avoid over-stylisation
+    "use_speaker_boost": True,
+}
 
 
 def synthesize(script_lines: list[ScriptLine], config: dict, output_path: Path) -> None:
@@ -46,6 +55,8 @@ def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[Aud
 
 def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list[AudioSegment]:
     from elevenlabs import ElevenLabs
+    from elevenlabs.types import VoiceSettings
+
     client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"], timeout=_ELEVENLABS_TIMEOUT)
 
     voices = config.get("tts", {}).get("elevenlabs_voices", {})
@@ -55,6 +66,8 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
     speed_config = config.get("tts", {}).get("elevenlabs_speed", {})
     host1_speed = float(speed_config.get("host1", 1.0))
     host2_speed = float(speed_config.get("host2", 1.0))
+
+    voice_settings = VoiceSettings(**_ELEVENLABS_VOICE_SETTINGS)
 
     segments = []
     for i, line in enumerate(script_lines):
@@ -68,6 +81,7 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
                         voice_id=voice_id,
                         model_id="eleven_multilingual_v2",
                         speed=speed,
+                        voice_settings=voice_settings,
                     )
                 )
                 break
@@ -97,7 +111,28 @@ def _assemble(
         if i < len(segments) - 1:
             combined += silence
 
-    combined = normalize(combined)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    combined.export(str(output_path), format="mp3")
+
+    # Write to a temp file, then apply the mastering chain via ffmpeg
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        combined.export(tmp_path, format="mp3")
+        _master(tmp_path, str(output_path))
+    finally:
+        os.unlink(tmp_path)
+
+
+def _master(input_path: str, output_path: str) -> None:
+    """Apply a consistent mastering chain: high-pass filter + EBU R128 loudness normalisation."""
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-i", input_path,
+            "-af", "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-ar", "44100",
+            output_path,
+        ],
+        check=True,
+        capture_output=True,
+    )
