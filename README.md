@@ -156,7 +156,7 @@ docs/
 
 ## Cost
 
-Roughly **$0.19–0.53 per episode** at personal use volumes:
+Roughly **$0.19–0.53 per episode** (Claude + Tavily), plus TTS:
 
 | Service | Cost |
 |---------|------|
@@ -164,7 +164,8 @@ Roughly **$0.19–0.53 per episode** at personal use volumes:
 | Claude research (planner + synthesizer + description) | ~$0.03–0.08 |
 | Claude script generation | ~$0.07–0.15 |
 | Claude fact-check + rewrite pass | ~$0.08–0.15 |
-| ElevenLabs TTS | ~$0.00–0.10 (within free/Starter tier) |
+| ElevenLabs TTS | Starter plan ($5/mo) covers ~1–2 episodes/month at 3,000 words (~15–18K chars); upgrade to Creator ($22/mo) for ~5–6 episodes/month |
+| OpenAI TTS (alternative) | ~$0.45–0.55/episode — no monthly cap, better for higher volume |
 | S3 | negligible |
 
 ---

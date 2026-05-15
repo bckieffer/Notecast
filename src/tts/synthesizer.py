@@ -52,9 +52,14 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
     host1_voice = os.environ.get("ELEVENLABS_HOST1_VOICE_ID") or voices.get("host1", "pNInz6obpgDQGcFmaJgB")
     host2_voice = os.environ.get("ELEVENLABS_HOST2_VOICE_ID") or voices.get("host2", "EXAVITQu4vr4xnSDxMaL")
 
+    speed_config = config.get("tts", {}).get("elevenlabs_speed", {})
+    host1_speed = float(speed_config.get("host1", 1.0))
+    host2_speed = float(speed_config.get("host2", 1.0))
+
     segments = []
     for i, line in enumerate(script_lines):
         voice_id = host1_voice if line.speaker == 1 else host2_voice
+        speed = host1_speed if line.speaker == 1 else host2_speed
         for attempt in range(_ELEVENLABS_RETRIES):
             try:
                 audio_bytes = b"".join(
@@ -62,6 +67,7 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
                         text=line.text,
                         voice_id=voice_id,
                         model_id="eleven_multilingual_v2",
+                        speed=speed,
                     )
                 )
                 break
