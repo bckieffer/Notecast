@@ -40,7 +40,66 @@ class ScriptLine:
     text: str
 
 
-def generate_script(context: str, config: dict) -> list[ScriptLine]:
+_DESCRIPTION_PROMPT = """\
+Write a 2-3 sentence podcast episode description for "{podcast_name}".
+
+The episode explores this question: {question}
+
+Key findings from the research:
+{brief}
+
+Rules:
+- Start with "In this episode," or a similar hook
+- Write in present tense, as if describing what listeners will hear
+- Be specific — name at least one concrete finding or insight from the research
+- Do not use markdown, headers, or bullet points — plain prose only
+- Maximum 60 words"""
+
+
+def generate_episode_description(question: str, brief: str, config: dict) -> str:
+    client = anthropic.Anthropic()
+
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=256,
+        messages=[{
+            "role": "user",
+            "content": _DESCRIPTION_PROMPT.format(
+                podcast_name=config.get("podcast_name", "Notecast"),
+                question=question,
+                brief=brief[:2000],
+            ),
+        }],
+    )
+
+    return message.content[0].text.strip()
+
+
+_FACT_CHECK_PROMPT = """\
+<instructions>
+You are a fact-checker for a podcast script. Your job is to ensure every factual claim
+in the script is supported by the research brief below.
+
+For each line that contains a claim NOT supported by the brief:
+- Rewrite that line so the claim is accurate according to the brief, OR
+- Remove the unsupported claim and replace it with something the brief does support
+- Preserve the speaker's voice, tone, and conversational style
+- Do NOT change lines that are already accurate or are opinions/transitions
+
+Return the COMPLETE corrected script in the exact same <host1>/<host2> tag format.
+If no corrections are needed, return the script unchanged.
+</instructions>
+
+<research_brief>
+{brief}
+</research_brief>
+
+<script>
+{script}
+</script>"""
+
+
+def generate_script(context: str, config: dict, brief: str = "") -> list[ScriptLine]:
     client = anthropic.Anthropic()
 
     message = client.messages.create(
@@ -53,6 +112,28 @@ def generate_script(context: str, config: dict) -> list[ScriptLine]:
                 word_count=config.get("script", {}).get("word_count", 3000),
                 context=context,
             ),
+        }],
+    )
+
+    lines = _parse_script(message.content[0].text)
+
+    if brief and config.get("script", {}).get("fact_check", True):
+        lines = _fact_check_and_rewrite(lines, brief, client)
+
+    return lines
+
+
+def _fact_check_and_rewrite(lines: list[ScriptLine], brief: str, client) -> list[ScriptLine]:
+    script_text = "\n".join(
+        f"<host{l.speaker}>{l.text}</host{l.speaker}>" for l in lines
+    )
+
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=8192,
+        messages=[{
+            "role": "user",
+            "content": _FACT_CHECK_PROMPT.format(brief=brief, script=script_text),
         }],
     )
 

@@ -48,8 +48,9 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
     from elevenlabs import ElevenLabs
     client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"], timeout=_ELEVENLABS_TIMEOUT)
 
-    host1_voice = os.environ.get("ELEVENLABS_HOST1_VOICE_ID", "pNInz6obpgDQGcFmaJgB")  # Adam
-    host2_voice = os.environ.get("ELEVENLABS_HOST2_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Bella
+    voices = config.get("tts", {}).get("elevenlabs_voices", {})
+    host1_voice = os.environ.get("ELEVENLABS_HOST1_VOICE_ID") or voices.get("host1", "pNInz6obpgDQGcFmaJgB")
+    host2_voice = os.environ.get("ELEVENLABS_HOST2_VOICE_ID") or voices.get("host2", "EXAVITQu4vr4xnSDxMaL")
 
     segments = []
     for i, line in enumerate(script_lines):

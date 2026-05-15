@@ -8,3 +8,4 @@ class ResearchState(TypedDict):
     brief: str                  # structured Markdown brief from synthesizer
     script_context: str         # brief + question packaged for script generator
     iterations: int
+    config: dict                # pipeline config forwarded for node-level settings

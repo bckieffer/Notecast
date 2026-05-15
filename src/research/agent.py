@@ -31,7 +31,7 @@ def build_research_graph():
     return graph.compile()
 
 
-def run_research(question: str) -> ResearchState:
+def run_research(question: str, config: dict | None = None) -> ResearchState:
     graph = build_research_graph()
     initial: ResearchState = {
         "question": question,
@@ -40,5 +40,6 @@ def run_research(question: str) -> ResearchState:
         "brief": "",
         "script_context": "",
         "iterations": 0,
+        "config": config or {},
     }
     return graph.invoke(initial)

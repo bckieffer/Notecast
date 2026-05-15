@@ -4,16 +4,24 @@ podcast_tagline: "AI-generated research episodes"
 research:
   max_results: 5        # Tavily results per question
   search_depth: advanced
+  days: 90              # only return results published within this many days
 
 llm:
   model: "anthropic/claude-sonnet-4-6"
   api_key_label: "ANTHROPIC_API_KEY"
 
 tts:
-  provider: "elevenlabs"  # elevenlabs | openai | edge
+  provider: "elevenlabs"  # elevenlabs | openai
+  elevenlabs_voices:
+    host1: "pNInz6obpgDQGcFmaJgB"  # Adam — find IDs at elevenlabs.io/voice-library
+    host2: "EXAVITQu4vr4xnSDxMaL"  # Bella
+  openai_voices:
+    host1: "onyx"   # onyx | echo | fable | alloy | shimmer
+    host2: "nova"
 
 script:
   word_count: 3000
+  fact_check: true       # rewrite unsupported claims against the research brief
   conversation_style:
     - "informative"
     - "engaging"

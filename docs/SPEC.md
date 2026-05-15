@@ -93,6 +93,8 @@ The pipeline has four sequential stages, orchestrated by GitHub Actions:
 
 **Prompt includes:** explicit tone, safety, and compliance instructions alongside the content brief (following the NotebookLM pattern).
 
+**Fact-check pass:** After script generation, a second Claude call compares every factual claim in the script against the research brief. Any claim not supported by the brief is automatically rewritten to reflect what the sources actually say, preserving speaker voice and tone. This runs by default and is controlled by `script.fact_check` in `config.yaml`. It adds one API call (~$0.08–0.15) and prevents hallucinations from propagating into the final audio.
+
 **Reference libraries:** `podcastfy` is available as a fallback for prototyping but will not be the long-term dependency — the custom LangGraph agent produces higher-quality research context.
 
 ---
@@ -174,10 +176,12 @@ A `config.yaml` (committed, no secrets) holds tunable defaults: target episode l
 | Service | Estimated Cost |
 |---------|----------------|
 | Tavily search | ~$0.01–0.05 (1–2 credits per query × 5 queries) |
-| Claude script generation | ~$0.05–0.20 (varies with research depth and script length) |
+| Claude research (planner + synthesizer + description) | ~$0.03–0.08 |
+| Claude script generation | ~$0.07–0.15 (varies with research depth and script length) |
+| Claude fact-check + rewrite pass | ~$0.08–0.15 (full script + brief in, corrected script out) |
 | ElevenLabs TTS | ~$0.00–0.10 (well within 30K char/mo Starter limit for personal use) |
 | S3 storage + transfer | Negligible |
-| **Total per episode** | **~$0.06–0.35** |
+| **Total per episode** | **~$0.19–0.53** |
 
 ---
 

@@ -59,6 +59,7 @@ Derived from [SPEC.md](SPEC.md). Each phase produces a working, usable artifact 
 - [x] Write script generation prompt following NotebookLM pattern: persona, tone, brief injection
 - [x] Call Claude with the packaged context; parse `<host1>` / `<host2>` tags from response
 - [x] Validate output: both speakers present, minimum word count met, no malformed tags
+- [x] Fact-check pass: second Claude call rewrites any script claims not supported by the research brief; controlled by `script.fact_check` in `config.yaml`
 
 #### TTS synthesis (`src/tts/`)
 - [x] Implement per-line audio generation loop (ElevenLabs + OpenAI backends)

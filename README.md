@@ -9,6 +9,8 @@ A personal tool that turns research questions into private podcast episodes. Ask
          ↓
   Claude script generation
          ↓
+  Claude fact-check + rewrite pass
+         ↓
   ElevenLabs two-voice TTS
          ↓
   Private RSS feed on S3
@@ -125,9 +127,13 @@ The episode is uploaded to S3 and appears in your podcast feed automatically.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `tts.provider` | `elevenlabs` | TTS backend (`elevenlabs`, `openai`, `edge`) |
+| `tts.provider` | `elevenlabs` | TTS backend (`elevenlabs`, `openai`) |
+| `tts.elevenlabs_voices.host1/host2` | Adam / Bella | ElevenLabs voice IDs |
+| `tts.openai_voices.host1/host2` | onyx / nova | OpenAI voice names |
 | `script.word_count` | `3000` | Target script length (~10–15 min episode) |
+| `script.fact_check` | `true` | Rewrite unsupported script claims against the research brief |
 | `research.max_results` | `5` | Number of Tavily sources per question |
+| `research.days` | `90` | Only return results published within this many days |
 | `podcast_name` | `Notecast` | Name used in RSS feed and episode metadata |
 
 ---
@@ -150,12 +156,14 @@ docs/
 
 ## Cost
 
-Roughly **$0.06–0.35 per episode** at personal use volumes:
+Roughly **$0.19–0.53 per episode** at personal use volumes:
 
 | Service | Cost |
 |---------|------|
 | Tavily search | ~$0.01–0.05 |
-| Claude (script) | ~$0.05–0.20 |
+| Claude research (planner + synthesizer + description) | ~$0.03–0.08 |
+| Claude script generation | ~$0.07–0.15 |
+| Claude fact-check + rewrite pass | ~$0.08–0.15 |
 | ElevenLabs TTS | ~$0.00–0.10 (within free/Starter tier) |
 | S3 | negligible |
 

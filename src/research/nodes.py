@@ -12,6 +12,9 @@ You are a research planner. Decompose the question into 3-5 targeted web search 
 that collectively cover the topic from multiple angles (current state, recent developments,
 expert opinions, comparisons, practical implications).
 
+Prioritize recency — queries should surface the latest research, announcements, and expert
+commentary. Include the current year or phrases like "latest" and "2025" where natural.
+
 If previous queries exist and results were insufficient, generate NEW queries that explore
 different angles not already covered. Return ONLY a valid JSON array of strings.
 </instructions>
@@ -75,10 +78,13 @@ def searcher_node(state: ResearchState) -> ResearchState:
     already_searched = {r["query"] for r in state.get("search_results", [])}
     results = list(state.get("search_results", []))
 
+    config = state.get("config", {})
+    days = config.get("research", {}).get("days", 90)
+
     for query in state["sub_queries"]:
         if query in already_searched:
             continue
-        response = client.search(query=query, max_results=3, search_depth="advanced")
+        response = client.search(query=query, max_results=3, search_depth="advanced", days=days)
         results.append({"query": query, "results": response.get("results", [])})
 
     return {**state, "search_results": results, "iterations": state.get("iterations", 0) + 1}
