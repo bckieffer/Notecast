@@ -10,7 +10,7 @@ Usage:
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -100,8 +100,30 @@ def main(
         typer.echo("\nUploading to S3…")
         episode_url = upload_episode(audio_path)
         typer.echo(f"Episode URL: {episode_url}")
+
+        # ── Stage 6: RSS feed update ──────────────────────────────────────────
+        from pydub import AudioSegment
+        from src.feed.generator import Episode, update_feed
+
+        file_size = audio_path.stat().st_size
+        duration = int(AudioSegment.from_mp3(str(audio_path)).duration_seconds)
+        pub_date = datetime.now(tz=timezone.utc).isoformat()
+
+        episode = Episode(
+            guid=slug,
+            title=f"Episode: {question[:80]}",
+            description=state["brief"][:500],
+            url=episode_url,
+            pub_date=pub_date,
+            file_size=file_size,
+            duration=duration,
+        )
+
+        typer.echo("\nUpdating RSS feed…")
+        feed_url = update_feed(episode, config)
+        typer.echo(f"Feed URL: {feed_url}")
     else:
-        typer.echo("\n[skip] AWS_S3_BUCKET not set — skipping S3 upload.")
+        typer.echo("\n[skip] AWS_S3_BUCKET not set — skipping S3 upload and feed update.")
 
     typer.echo("\nDone.")
 

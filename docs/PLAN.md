@@ -81,16 +81,17 @@ Derived from [SPEC.md](SPEC.md). Each phase produces a working, usable artifact 
 
 **Goal:** Subscribe to the feed once in a podcast app; new episodes appear automatically.  
 **Estimate:** 1–2 days  
+**Status:** ✅ Complete  
 **Success criterion:** After an Actions run completes, the new episode appears in Overcast within 30 minutes (standard RSS poll interval).
 
 ### Tasks
 
-- [ ] Implement `src/feed/generator.py` using `feedgen`
-  - Read existing `podcast.xml` from S3 (if present)
+- [x] Implement `src/feed/generator.py` using `feedgen`
+  - Maintains `feed_state.json` in S3 as source of truth; regenerates `podcast.xml` from scratch on each update
   - Append new episode item: title, enclosure URL, pubDate, guid, iTunes tags
   - Write updated `podcast.xml` back to S3 at `AWS_S3_FEED_KEY`
-- [ ] Set S3 object ACL / bucket policy so `podcast.xml` is publicly readable at a stable URL
-- [ ] Add feed regeneration as the final step in the Actions workflow (after S3 upload)
+- [x] Set S3 object ACL / bucket policy so `podcast.xml` is publicly readable at a stable URL (done via Terraform in Phase 2 infra setup)
+- [x] Add feed regeneration as the final step in the pipeline (after S3 upload) in `src/pipeline.py`
 - [ ] Subscribe to the RSS URL in Overcast (one-time setup)
 - [ ] Verify: trigger a run, wait for feed poll, confirm episode appears
 
