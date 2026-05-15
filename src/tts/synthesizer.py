@@ -1,11 +1,15 @@
 import io
 import os
+import time
 from pathlib import Path
 
 from pydub import AudioSegment
 from pydub.effects import normalize
 
 from src.script.generator import ScriptLine
+
+_ELEVENLABS_TIMEOUT = 120  # seconds — long segments can take 30-60s to generate
+_ELEVENLABS_RETRIES = 3
 
 
 def synthesize(script_lines: list[ScriptLine], config: dict, output_path: Path) -> None:
@@ -42,21 +46,30 @@ def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[Aud
 
 def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list[AudioSegment]:
     from elevenlabs import ElevenLabs
-    client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
+    client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"], timeout=_ELEVENLABS_TIMEOUT)
 
     host1_voice = os.environ.get("ELEVENLABS_HOST1_VOICE_ID", "pNInz6obpgDQGcFmaJgB")  # Adam
     host2_voice = os.environ.get("ELEVENLABS_HOST2_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Bella
 
     segments = []
-    for line in script_lines:
+    for i, line in enumerate(script_lines):
         voice_id = host1_voice if line.speaker == 1 else host2_voice
-        audio_bytes = b"".join(
-            client.text_to_speech.convert(
-                text=line.text,
-                voice_id=voice_id,
-                model_id="eleven_multilingual_v2",
-            )
-        )
+        for attempt in range(_ELEVENLABS_RETRIES):
+            try:
+                audio_bytes = b"".join(
+                    client.text_to_speech.convert(
+                        text=line.text,
+                        voice_id=voice_id,
+                        model_id="eleven_multilingual_v2",
+                    )
+                )
+                break
+            except Exception as e:
+                if attempt == _ELEVENLABS_RETRIES - 1:
+                    raise
+                wait = 2 ** attempt
+                print(f"  [retry {attempt + 1}/{_ELEVENLABS_RETRIES - 1}] segment {i + 1} failed ({e}), retrying in {wait}s…")
+                time.sleep(wait)
         segments.append(AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3"))
 
     return segments
