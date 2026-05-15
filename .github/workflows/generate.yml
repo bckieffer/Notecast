@@ -1,0 +1,77 @@
+name: Generate Episode
+
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: "Research question for the episode"
+        required: true
+        type: string
+      dry_run:
+        description: "Research only — skip audio generation"
+        required: false
+        default: false
+        type: boolean
+      tts:
+        description: "TTS provider override (elevenlabs|openai|edge)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_S3_FEED_KEY: ${{ secrets.AWS_S3_FEED_KEY }}
+          PODCAST_FEED_BASE_URL: ${{ secrets.PODCAST_FEED_BASE_URL }}
+        run: |
+          ARGS="${{ inputs.question }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "${{ inputs.tts }}" ]; then
+            ARGS="$ARGS --tts ${{ inputs.tts }}"
+          fi
+          python src/pipeline.py "$ARGS"
+
+      - name: Upload output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-debug
+          path: output/
+          retention-days: 3
+
+      - name: Upload episode
+        if: success() && inputs.dry_run == false
+        uses: actions/upload-artifact@v4
+        with:
+          name: episode
+          path: output/audio/
+          retention-days: 7

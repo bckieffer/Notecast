@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in values.
+# terraform.tfvars is gitignored — never commit it.
+
+# AWS
+aws_region  = "us-east-1"
+bucket_name = "notecast-yourname"   # must be globally unique
+
+# GitHub — create a token at https://github.com/settings/tokens
+# Scopes needed: repo (full), secrets:write
+github_token = "ghp_..."
+github_owner = "your-github-username"
+github_repo  = "Notecast"
+
+# Third-party API keys (copy from .env)
+tavily_api_key     = "tvly-..."
+anthropic_api_key  = "sk-ant-..."
+elevenlabs_api_key = "sk_..."
+openai_api_key     = "sk-proj-..."  # optional, TTS fallback

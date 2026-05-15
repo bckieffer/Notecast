@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+output/
+*.mp3
+*.wav
+structured_brief.json
+
+# Terraform
+infrastructure/terraform.tfvars
+infrastructure/.terraform/
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup

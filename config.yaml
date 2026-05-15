@@ -1,0 +1,32 @@
+podcast_name: "Notecast"
+podcast_tagline: "AI-generated research episodes"
+
+research:
+  max_results: 5        # Tavily results per question
+  search_depth: advanced
+
+llm:
+  model: "anthropic/claude-sonnet-4-6"
+  api_key_label: "ANTHROPIC_API_KEY"
+
+tts:
+  provider: "elevenlabs"  # elevenlabs | openai | edge
+
+script:
+  word_count: 3000
+  conversation_style:
+    - "informative"
+    - "engaging"
+  roles_person1: "lead researcher"
+  roles_person2: "curious questioner"
+  dialogue_structure:
+    - "Introduction"
+    - "Main Discussion"
+    - "Key Insights"
+    - "Conclusion"
+  engagement_techniques:
+    - "rhetorical questions"
+    - "analogies"
+    - "real-world examples"
+
+output_dir: "output"
