@@ -45,10 +45,10 @@ script:
 
 intro_music:
   path: "assets/intro.mp3"
-  overlap_ms: 3000    # music begins fading in this many ms before intro speech ends
-  sting_ms: 15000      # music plays solo at full volume after intro ends (ms)
-  fade_in_ms: 3000    # duration of music fade-in while overlapping speech (ms)
-  fade_out_ms: 3000   # duration of music fade-out into the episode (ms)
-  duck_db: 14         # dB reduction of music while speech is playing (overlap + fade-out)
+  overlap_ms: 4500    # music begins fading in this many ms before intro speech ends
+  sting_ms: 6000      # music plays solo at full volume after intro ends (ms)
+  fade_in_ms: 2500    # duration of music fade-in while overlapping speech (ms)
+  fade_out_ms: 2000   # duration of music fade-out into the episode (ms)
+  duck_db: 11         # dB reduction of music while speech is playing (overlap + fade-out)
 
 output_dir: "output"

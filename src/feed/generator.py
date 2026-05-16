@@ -29,8 +29,8 @@ class Episode:
     duration: int   # seconds
 
 
-def update_feed(episode: Episode, config: dict) -> str:
-    """Add episode to the feed and regenerate podcast.xml. Returns the feed URL."""
+def update_feed(episode: Episode, config: dict) -> tuple[str, int]:
+    """Add episode to the feed and regenerate podcast.xml. Returns (feed_url, episode_number)."""
     bucket = os.environ["AWS_S3_BUCKET"]
     feed_key = os.environ.get("AWS_S3_FEED_KEY", "podcast.xml")
     base_url = os.environ["PODCAST_FEED_BASE_URL"].rstrip("/")
@@ -49,7 +49,7 @@ def update_feed(episode: Episode, config: dict) -> str:
         ContentType="application/rss+xml",
     )
 
-    return f"{base_url}/{feed_key}"
+    return f"{base_url}/{feed_key}", len(episodes)
 
 
 def _load_state(s3, bucket: str) -> list[dict]:
@@ -91,7 +91,11 @@ def _generate_xml(
     fg.podcast.itunes_author(config.get("podcast_name", "Notecast"))
     fg.podcast.itunes_category("Technology")
 
-    for ep in sorted(episodes, key=lambda e: e["pub_date"], reverse=True):
+    # Assign episode numbers by ascending publication date (oldest = 1)
+    sorted_asc = sorted(episodes, key=lambda e: e["pub_date"])
+    episode_numbers = {ep["guid"]: i + 1 for i, ep in enumerate(sorted_asc)}
+
+    for ep in reversed(sorted_asc):  # newest first in RSS
         fe = fg.add_entry()
         fe.id(ep["guid"])
         fe.title(ep["title"])
@@ -99,5 +103,7 @@ def _generate_xml(
         fe.enclosure(url=ep["url"], length=str(ep["file_size"]), type="audio/mpeg")
         fe.published(ep["pub_date"])
         fe.podcast.itunes_duration(ep.get("duration", 0))
+        fe.podcast.itunes_episode(episode_numbers[ep["guid"]])
+        fe.podcast.itunes_episode_type("full")
 
     return fg.rss_str(pretty=True)

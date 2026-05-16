@@ -22,21 +22,33 @@ _ELEVENLABS_VOICE_SETTINGS_BASE = {
 }
 
 
-def synthesize(script_lines: list[ScriptLine], config: dict, output_path: Path) -> None:
+def synthesize(
+    script_lines: list[ScriptLine],
+    config: dict,
+    output_path: Path,
+    cache_dir: Path | None = None,
+) -> None:
     provider = config.get("tts", {}).get("provider", "openai")
 
     # Synthesize only spoken lines (skip intro_end sentinel)
     spoken = [l for l in script_lines if l.speaker != 0]
 
+    if cache_dir:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
     if provider == "elevenlabs":
-        segments = _synthesize_elevenlabs(spoken, config)
+        segments = _synthesize_elevenlabs(spoken, config, cache_dir)
     else:
-        segments = _synthesize_openai(spoken, config)
+        segments = _synthesize_openai(spoken, config, cache_dir)
 
     _assemble(segments, script_lines, output_path, config)
 
 
-def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[AudioSegment]:
+def _synthesize_openai(
+    script_lines: list[ScriptLine],
+    config: dict,
+    cache_dir: Path | None = None,
+) -> list[AudioSegment]:
     from openai import OpenAI
     client = OpenAI()
 
@@ -49,7 +61,13 @@ def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[Aud
     host2_speed = float(speed_config.get("host2", 1.0))
 
     segments = []
-    for line in script_lines:
+    for i, line in enumerate(script_lines):
+        seg_path = cache_dir / f"segment_{i:04d}.mp3" if cache_dir else None
+        if seg_path and seg_path.exists():
+            print(f"  [cache] segment {i + 1}/{len(script_lines)}")
+            segments.append(AudioSegment.from_mp3(str(seg_path)))
+            continue
+
         voice = host1_voice if line.speaker == 1 else host2_voice
         speed = host1_speed if line.speaker == 1 else host2_speed
         response = client.audio.speech.create(
@@ -58,12 +76,19 @@ def _synthesize_openai(script_lines: list[ScriptLine], config: dict) -> list[Aud
             input=line.text,
             speed=speed,
         )
-        segments.append(AudioSegment.from_file(io.BytesIO(response.read()), format="mp3"))
+        seg = AudioSegment.from_file(io.BytesIO(response.read()), format="mp3")
+        if seg_path:
+            seg.export(str(seg_path), format="mp3")
+        segments.append(seg)
 
     return segments
 
 
-def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list[AudioSegment]:
+def _synthesize_elevenlabs(
+    script_lines: list[ScriptLine],
+    config: dict,
+    cache_dir: Path | None = None,
+) -> list[AudioSegment]:
     from elevenlabs import ElevenLabs
     from elevenlabs.types import VoiceSettings
 
@@ -79,6 +104,12 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
 
     segments = []
     for i, line in enumerate(script_lines):
+        seg_path = cache_dir / f"segment_{i:04d}.mp3" if cache_dir else None
+        if seg_path and seg_path.exists():
+            print(f"  [cache] segment {i + 1}/{len(script_lines)}")
+            segments.append(AudioSegment.from_mp3(str(seg_path)))
+            continue
+
         voice_id = host1_voice if line.speaker == 1 else host2_voice
         voice_settings = host1_settings if line.speaker == 1 else host2_settings
         for attempt in range(_ELEVENLABS_RETRIES):
@@ -98,7 +129,11 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
                 wait = 2 ** attempt
                 print(f"  [retry {attempt + 1}/{_ELEVENLABS_RETRIES - 1}] segment {i + 1} failed ({e}), retrying in {wait}s…")
                 time.sleep(wait)
-        segments.append(AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3"))
+
+        seg = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+        if seg_path:
+            seg.export(str(seg_path), format="mp3")
+        segments.append(seg)
 
     return segments
 

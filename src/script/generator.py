@@ -47,6 +47,34 @@ class ScriptLine:
     text: str
 
 
+_TITLE_PROMPT = """\
+Write a short, declarative episode title for a podcast episode about the following topic.
+
+Research question: {question}
+
+Rules:
+- Declarative, not a question — state what the episode covers, not what it asks
+- Style: chapter title or magazine headline (e.g. "The Real Cost of AI Coding Tools" not "What Do AI Coding Tools Cost?")
+- Maximum 60 characters
+- No quotation marks, no markdown, no "Episode:" prefix
+- Plain text only"""
+
+
+def generate_episode_title(question: str, config: dict) -> str:
+    client = anthropic.Anthropic()
+
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[{
+            "role": "user",
+            "content": _TITLE_PROMPT.format(question=question),
+        }],
+    )
+
+    return message.content[0].text.strip()
+
+
 _DESCRIPTION_PROMPT = """\
 Write a 2-3 sentence podcast episode description for "{podcast_name}".
 

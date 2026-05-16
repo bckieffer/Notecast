@@ -37,6 +37,18 @@ def _episode_slug(question: str) -> str:
     return f"{date}-{slug}"
 
 
+def _save_script(script_lines: list, path: Path) -> None:
+    from src.script.generator import ScriptLine
+    data = [{"speaker": l.speaker, "text": l.text} for l in script_lines]
+    path.write_text(json.dumps(data, indent=2))
+
+
+def _load_script(path: Path) -> list:
+    from src.script.generator import ScriptLine
+    data = json.loads(path.read_text())
+    return [ScriptLine(speaker=d["speaker"], text=d["text"]) for d in data]
+
+
 @app.command()
 def main(
     question: str = typer.Argument(default="", help="Research question for the episode"),
@@ -74,53 +86,69 @@ def main(
         typer.echo("Error: provide a question or --file.", err=True)
         raise typer.Exit(1)
 
-    # ── Stage 1-2: Agentic research ───────────────────────────────────────────
-    from src.research.agent import run_research
+    slug = _episode_slug(question)
+    cache_dir = out_dir / "cache" / slug
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    script_cache = cache_dir / "script.json"
 
-    typer.echo(f"\nResearching: {question}")
-    state = run_research(question, config=config, document_context=document_context)
+    brief = ""
 
-    sources = [r["url"] for item in state["search_results"] for r in item["results"]]
-    typer.echo(f"Sources ({len(sources)}):")
-    for url in sources:
-        typer.echo(f"  {url}")
+    if script_cache.exists():
+        # ── Resume from cached script ─────────────────────────────────────────
+        typer.echo(f"\n[cache] Loading script from {script_cache}")
+        script_lines = _load_script(script_cache)
+        word_count = sum(len(l.text.split()) for l in script_lines)
+        typer.echo(f"Script: {len(script_lines)} lines, {word_count} words")
+    else:
+        # ── Stage 1-2: Agentic research ───────────────────────────────────────
+        from src.research.agent import run_research
 
-    brief_path = out_dir / "structured_brief.json"
-    brief_path.write_text(json.dumps({
-        "question": question,
-        "sub_queries": state["sub_queries"],
-        "brief": state["brief"],
-        "sources": sources,
-    }, indent=2))
-    typer.echo(f"Brief saved → {brief_path}")
+        typer.echo(f"\nResearching: {question}")
+        state = run_research(question, config=config, document_context=document_context)
 
-    if dry_run:
-        typer.echo("\n[dry-run] Halting before audio generation.")
-        typer.echo(f"\n{state['brief']}")
-        return
+        sources = [r["url"] for item in state["search_results"] for r in item["results"]]
+        typer.echo(f"Sources ({len(sources)}):")
+        for url in sources:
+            typer.echo(f"  {url}")
 
-    # ── Stage 3: Script generation ────────────────────────────────────────────
-    from src.script.generator import generate_script
+        brief_path = cache_dir / "brief.json"
+        brief_path.write_text(json.dumps({
+            "question": question,
+            "sub_queries": state["sub_queries"],
+            "brief": state["brief"],
+            "sources": sources,
+        }, indent=2))
+        typer.echo(f"Brief saved → {brief_path}")
 
-    typer.echo("\nGenerating script…")
-    script_lines = generate_script(context=state["script_context"], config=config, brief=state["brief"])
-    word_count = sum(len(l.text.split()) for l in script_lines)
-    typer.echo(f"Script: {len(script_lines)} lines, {word_count} words")
+        if dry_run:
+            typer.echo("\n[dry-run] Halting before audio generation.")
+            typer.echo(f"\n{state['brief']}")
+            return
+
+        # ── Stage 3: Script generation ────────────────────────────────────────
+        from src.script.generator import generate_script
+
+        typer.echo("\nGenerating script…")
+        script_lines = generate_script(context=state["script_context"], config=config, brief=state["brief"])
+        word_count = sum(len(l.text.split()) for l in script_lines)
+        typer.echo(f"Script: {len(script_lines)} lines, {word_count} words")
+        _save_script(script_lines, script_cache)
+
+        brief = state["brief"]
 
     # ── Stage 4: TTS synthesis ────────────────────────────────────────────────
     from src.tts.synthesizer import synthesize
 
-    slug = _episode_slug(question)
     audio_path = out_dir / "audio" / f"{slug}.mp3"
     provider = config.get("tts", {}).get("provider", "openai")
     typer.echo(f"\nSynthesizing audio ({provider}, {len(script_lines)} segments)…")
-    synthesize(script_lines, config, audio_path)
+    synthesize(script_lines, config, audio_path, cache_dir=cache_dir)
     typer.echo(f"Audio saved → {audio_path}")
 
-    _upload_and_update_feed(audio_path, question, brief=state["brief"], config=config)
+    _upload_and_update_feed(audio_path, question, brief=brief, config=config, cache_dir=cache_dir)
 
 
-def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config: dict) -> None:
+def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config: dict, cache_dir: Path | None = None) -> None:
     if not os.environ.get("AWS_S3_BUCKET"):
         typer.echo("\n[skip] AWS_S3_BUCKET not set — skipping S3 upload and feed update.")
         typer.echo("\nDone.")
@@ -128,12 +156,16 @@ def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config:
 
     from pydub import AudioSegment
     from src.feed.generator import Episode, update_feed
-    from src.script.generator import generate_episode_description
+    from src.script.generator import generate_episode_description, generate_episode_title
     from src.storage.s3 import upload_episode
 
     typer.echo("\nUploading to S3…")
     episode_url = upload_episode(audio_path)
     typer.echo(f"Episode URL: {episode_url}")
+
+    typer.echo("Generating episode title…")
+    title = generate_episode_title(question, config)
+    typer.echo(f"Title: {title}")
 
     typer.echo("Generating episode description…")
     description = generate_episode_description(question, brief, config) if brief else question
@@ -146,7 +178,7 @@ def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config:
 
     episode = Episode(
         guid=slug,
-        title=f"Episode: {question[:80]}",
+        title=title,
         description=description,
         url=episode_url,
         pub_date=pub_date,
@@ -155,8 +187,21 @@ def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config:
     )
 
     typer.echo("\nUpdating RSS feed…")
-    feed_url = update_feed(episode, config)
+    feed_url, episode_number = update_feed(episode, config)
     typer.echo(f"Feed URL: {feed_url}")
+
+    if cache_dir and cache_dir.exists():
+        import shutil
+        out_dir = cache_dir.parent.parent
+        episode_dir = out_dir / "episodes" / f"{episode_number:03d}"
+        episode_dir.mkdir(parents=True, exist_ok=True)
+        for fname in ("script.json", "brief.json"):
+            src = cache_dir / fname
+            if src.exists():
+                shutil.copy2(src, episode_dir / fname)
+        shutil.rmtree(cache_dir)
+        typer.echo(f"[archive] Episode {episode_number:03d} collateral saved → {episode_dir}")
+
     typer.echo("\nDone.")
 
 
