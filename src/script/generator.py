@@ -55,6 +55,7 @@ Research question: {question}
 Rules:
 - Declarative, not a question — state what the episode covers, not what it asks
 - Style: chapter title or magazine headline (e.g. "The Real Cost of AI Coding Tools" not "What Do AI Coding Tools Cost?")
+- Omit month, year, or other date references unless the date is the entire point of the title
 - Maximum 60 characters
 - No quotation marks, no markdown, no "Episode:" prefix
 - Plain text only"""
