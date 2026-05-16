@@ -39,11 +39,12 @@ def _episode_slug(question: str) -> str:
 
 @app.command()
 def main(
-    question: str = typer.Argument(..., help="Research question for the episode"),
+    question: str = typer.Argument(default="", help="Research question for the episode"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Research only; skip audio generation"),
     tts: str = typer.Option("", "--tts", help="Override TTS provider (elevenlabs|openai)"),
     output_dir: str = typer.Option("", "--output-dir", help="Override output directory"),
     from_audio: str = typer.Option("", "--from-audio", help="Skip to S3 upload using an existing MP3"),
+    file: str = typer.Option("", "--file", help="Markdown file to use as research context"),
 ) -> None:
     config = load_config()
     if tts:
@@ -53,14 +54,31 @@ def main(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if from_audio:
+        if not question:
+            typer.echo("Error: --from-audio requires a question.", err=True)
+            raise typer.Exit(1)
         _upload_and_update_feed(Path(from_audio), question, brief="", config=config)
         return
+
+    document_context = ""
+    if file:
+        from src.document import extract_document_context, load_document
+        typer.echo(f"\nReading document: {file}")
+        content = load_document(file)
+        derived_question, document_context = extract_document_context(content, config)
+        if not question:
+            question = derived_question
+            typer.echo(f"Derived question: {question}")
+
+    if not question:
+        typer.echo("Error: provide a question or --file.", err=True)
+        raise typer.Exit(1)
 
     # ── Stage 1-2: Agentic research ───────────────────────────────────────────
     from src.research.agent import run_research
 
     typer.echo(f"\nResearching: {question}")
-    state = run_research(question, config=config)
+    state = run_research(question, config=config, document_context=document_context)
 
     sources = [r["url"] for item in state["search_results"] for r in item["results"]]
     typer.echo(f"Sources ({len(sources)}):")

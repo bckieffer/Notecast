@@ -94,6 +94,7 @@ For each line that contains a claim NOT supported by the brief:
 - Do NOT change lines that are already accurate or are opinions/transitions
 
 Return the COMPLETE corrected script in the exact same <host1>/<host2> tag format.
+Preserve the <intro_end/> marker exactly where it appears — do not move or remove it.
 If no corrections are needed, return the script unchanged.
 </instructions>
 
@@ -131,9 +132,13 @@ def generate_script(context: str, config: dict, brief: str = "") -> list[ScriptL
 
 
 def _fact_check_and_rewrite(lines: list[ScriptLine], brief: str, client) -> list[ScriptLine]:
-    script_text = "\n".join(
-        f"<host{l.speaker}>{l.text}</host{l.speaker}>" for l in lines
-    )
+    parts = []
+    for l in lines:
+        if l.speaker == 0:
+            parts.append("<intro_end/>")
+        else:
+            parts.append(f"<host{l.speaker}>{l.text}</host{l.speaker}>")
+    script_text = "\n".join(parts)
 
     message = client.messages.create(
         model="claude-sonnet-4-6",

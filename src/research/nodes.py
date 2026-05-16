@@ -15,10 +15,14 @@ expert opinions, comparisons, practical implications).
 Prioritize recency — queries should surface the latest research, announcements, and expert
 commentary. Include the current year or phrases like "latest" and "2025" where natural.
 
+If a source document is provided, generate queries that supplement and verify its key claims
+with independent sources — do not just search for the document itself.
+
 If previous queries exist and results were insufficient, generate NEW queries that explore
 different angles not already covered. Return ONLY a valid JSON array of strings.
 </instructions>
 <question>{question}</question>
+<source_document_context>{document_context}</source_document_context>
 <previous_queries>{previous}</previous_queries>
 <output_format>["query 1", "query 2", "query 3"]</output_format>"""
 
@@ -48,19 +52,29 @@ Be specific — include names, numbers, dates, and direct evidence where availab
 _SCRIPT_CONTEXT_TEMPLATE = """\
 Original question: {question}
 
-{brief}"""
+{brief}{document_section}"""
+
+_DOCUMENT_SECTION_TEMPLATE = """
+
+## Source Document Context
+{document_context}"""
 
 
 def planner_node(state: ResearchState) -> ResearchState:
     client = anthropic.Anthropic()
     previous = "\n".join(f"- {q}" for q in state.get("sub_queries", [])) or "None"
+    document_context = state.get("document_context", "") or "None"
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=512,
         messages=[{
             "role": "user",
-            "content": _PLANNER_PROMPT.format(question=state["question"], previous=previous),
+            "content": _PLANNER_PROMPT.format(
+                question=state["question"],
+                document_context=document_context,
+                previous=previous,
+            ),
         }],
     )
 
@@ -139,8 +153,14 @@ def synthesizer_node(state: ResearchState) -> ResearchState:
 
 
 def script_prompt_builder_node(state: ResearchState) -> ResearchState:
+    document_context = state.get("document_context", "")
+    document_section = (
+        _DOCUMENT_SECTION_TEMPLATE.format(document_context=document_context)
+        if document_context else ""
+    )
     context = _SCRIPT_CONTEXT_TEMPLATE.format(
         question=state["question"],
         brief=state["brief"],
+        document_section=document_section,
     )
     return {**state, "script_context": context}

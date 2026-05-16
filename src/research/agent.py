@@ -31,7 +31,11 @@ def build_research_graph():
     return graph.compile()
 
 
-def run_research(question: str, config: dict | None = None) -> ResearchState:
+def run_research(
+    question: str,
+    config: dict | None = None,
+    document_context: str = "",
+) -> ResearchState:
     graph = build_research_graph()
     initial: ResearchState = {
         "question": question,
@@ -41,5 +45,6 @@ def run_research(question: str, config: dict | None = None) -> ResearchState:
         "script_context": "",
         "iterations": 0,
         "config": config or {},
+        "document_context": document_context,
     }
     return graph.invoke(initial)
