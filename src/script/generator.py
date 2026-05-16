@@ -22,6 +22,7 @@ Hosts:
 
 Rules:
 - Format EVERY spoken line as <host1>text</host1> or <host2>text</host2> — no other text
+- After the opening hook exchange (2-4 lines total, one from each host), insert <intro_end/> on its own line — this is where the theme music plays
 - Include natural verbal fillers ("right", "exactly", "you know", "huh") for realism
 - Open with a hook that references the original question
 - Close with a brief summary and 1-2 open questions for future episodes
@@ -147,12 +148,16 @@ def _fact_check_and_rewrite(lines: list[ScriptLine], brief: str, client) -> list
 
 
 def _parse_script(text: str) -> list[ScriptLine]:
-    # Collect all tagged lines with their position so ordering is preserved
+    # Collect all tagged lines and the intro_end marker with positions
     lines: list[tuple[int, ScriptLine]] = []
 
     for tag, speaker in [("host1", 1), ("host2", 2)]:
         for match in re.finditer(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL):
             lines.append((match.start(), ScriptLine(speaker=speaker, text=match.group(1).strip())))
+
+    intro_end = re.search(r"<intro_end\s*/>", text)
+    if intro_end:
+        lines.append((intro_end.start(), ScriptLine(speaker=0, text="intro_end")))
 
     lines.sort(key=lambda x: x[0])
     result = [line for _, line in lines]

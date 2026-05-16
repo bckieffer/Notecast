@@ -25,10 +25,13 @@ _ELEVENLABS_VOICE_SETTINGS_BASE = {
 def synthesize(script_lines: list[ScriptLine], config: dict, output_path: Path) -> None:
     provider = config.get("tts", {}).get("provider", "openai")
 
+    # Synthesize only spoken lines (skip intro_end sentinel)
+    spoken = [l for l in script_lines if l.speaker != 0]
+
     if provider == "elevenlabs":
-        segments = _synthesize_elevenlabs(script_lines, config)
+        segments = _synthesize_elevenlabs(spoken, config)
     else:
-        segments = _synthesize_openai(script_lines, config)
+        segments = _synthesize_openai(spoken, config)
 
     _assemble(segments, script_lines, output_path, config)
 
@@ -102,22 +105,42 @@ def _synthesize_elevenlabs(script_lines: list[ScriptLine], config: dict) -> list
 
 def _assemble(
     segments: list[AudioSegment],
-    script_lines: list[ScriptLine],
+    script_lines: list[ScriptLine],  # includes intro_end sentinel
     output_path: Path,
     config: dict,
 ) -> None:
     pause_ms = config.get("tts", {}).get("pause_ms", 200)
     silence = AudioSegment.silent(duration=pause_ms)
 
-    combined = AudioSegment.empty()
-    for i, seg in enumerate(segments):
-        combined += seg
-        if i < len(segments) - 1:
-            combined += silence
+    # Find how many spoken lines precede the intro_end sentinel
+    intro_count = 0
+    for line in script_lines:
+        if line.speaker == 0:
+            break
+        intro_count += 1
+
+    def build_audio(segs):
+        audio = AudioSegment.empty()
+        for i, seg in enumerate(segs):
+            audio += seg
+            if i < len(segs) - 1:
+                audio += silence
+        return audio
+
+    music_cfg = config.get("intro_music", {})
+    music_path = music_cfg.get("path", "assets/intro.mp3")
+
+    has_intro = intro_count < len(segments) and Path(music_path).exists()
+
+    if has_intro:
+        intro_audio = build_audio(segments[:intro_count])
+        episode_audio = build_audio(segments[intro_count:])
+        combined = _mix_intro_music(intro_audio, episode_audio, music_cfg)
+    else:
+        combined = build_audio(segments)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write to a temp file, then apply the mastering chain via ffmpeg
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
         tmp_path = tmp.name
 
@@ -126,6 +149,40 @@ def _assemble(
         _master(tmp_path, str(output_path))
     finally:
         os.unlink(tmp_path)
+
+
+def _mix_intro_music(
+    intro_audio: AudioSegment,
+    episode_audio: AudioSegment,
+    cfg: dict,
+) -> AudioSegment:
+    overlap_ms = cfg.get("overlap_ms", 2000)   # music fades in under last N ms of intro
+    sting_ms = cfg.get("sting_ms", 4000)        # music plays solo after intro ends
+    fade_in_ms = cfg.get("fade_in_ms", 1500)    # music fade-in duration
+    fade_out_ms = cfg.get("fade_out_ms", 2000)  # music fade-out duration
+    duck_db = cfg.get("duck_db", 14)            # dB reduction while speech is playing
+
+    music = AudioSegment.from_mp3(cfg.get("path", "assets/intro.mp3"))
+
+    # Trim or loop music to the required length
+    needed_ms = overlap_ms + sting_ms + fade_out_ms
+    if len(music) < needed_ms:
+        loops = (needed_ms // len(music)) + 2
+        music = music * loops
+    music = music[:needed_ms]
+
+    # Volume envelope: ducked during overlap, full during sting, fade out
+    overlap_section = music[:overlap_ms].fade_in(min(fade_in_ms, overlap_ms)) - duck_db
+    sting_section = music[overlap_ms:overlap_ms + sting_ms]
+    fadeout_section = music[overlap_ms + sting_ms:].fade_out(fade_out_ms)
+    music_track = overlap_section + sting_section + fadeout_section
+
+    # Speech track: intro + silence gap for the sting + episode
+    full_speech = intro_audio + AudioSegment.silent(duration=sting_ms) + episode_audio
+
+    # Overlay music so it starts overlap_ms before intro ends
+    music_start = max(0, len(intro_audio) - overlap_ms)
+    return full_speech.overlay(music_track, position=music_start)
 
 
 def _master(input_path: str, output_path: str) -> None:
