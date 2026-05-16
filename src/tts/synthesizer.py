@@ -173,14 +173,13 @@ def _mix_intro_music(
 
     # Volume envelope:
     # - overlap: fade in from silence, ducked under speech
-    # - crossfade: brief ramp from ducked to full volume as speech ends
+    # - crossfade: overlay of ducked-fadeout + full-fadein to smoothly rise to full volume
     # - sting: full volume, music plays solo
-    # - fade out: reduce back to ducked level then fade to silence under episode speech
+    # - fade out: ducked level fading to silence under episode speech
     crossfade_ms = min(500, overlap_ms)
-    overlap_section = (music[:overlap_ms - crossfade_ms].fade_in(min(fade_in_ms, overlap_ms - crossfade_ms))) - duck_db
-    crossfade_section = music[overlap_ms - crossfade_ms:overlap_ms].fade(
-        to_gain=0, from_gain=-duck_db, duration=crossfade_ms
-    )
+    overlap_section = (music[:overlap_ms - crossfade_ms].fade_in(min(fade_in_ms, max(1, overlap_ms - crossfade_ms)))) - duck_db
+    xfade_seg = music[overlap_ms - crossfade_ms:overlap_ms]
+    crossfade_section = (xfade_seg - duck_db).fade_out(crossfade_ms).overlay(xfade_seg.fade_in(crossfade_ms))
     sting_section = music[overlap_ms:overlap_ms + sting_ms]
     fadeout_section = (music[overlap_ms + sting_ms:] - duck_db).fade_out(fade_out_ms)
     music_track = overlap_section + crossfade_section + sting_section + fadeout_section
