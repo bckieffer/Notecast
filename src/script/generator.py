@@ -3,6 +3,44 @@ from dataclasses import dataclass
 
 import anthropic
 
+_OUTLINE_PROMPT = """\
+You are planning a podcast episode for "{podcast_name}".
+
+Research question: {question}
+
+Research findings:
+{brief}
+
+Create a concise episode outline of 6–8 beats. Each beat should specify:
+- The topic or pivot point being explored
+- 1–2 specific findings or facts from the research to surface here
+- Which host drives it: Host 1 (Alex, lead researcher) or Host 2 (Sam, curious questioner)
+
+Rules:
+- Beats are conversational pivot points, not lecture sections — write them as dialogue cues
+- Distribute the best findings across the episode; do not front-load
+- Save a genuinely surprising or counterintuitive finding for the second half
+- Final beat: brief synthesis + 1–2 open questions pointing toward future episodes
+- Total outline length: 150–200 words maximum"""
+
+
+def generate_outline(question: str, brief: str, config: dict) -> str:
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": _OUTLINE_PROMPT.format(
+                podcast_name=config.get("podcast_name", "Notecast"),
+                question=question,
+                brief=brief[:3000],
+            ),
+        }],
+    )
+    return message.content[0].text.strip()
+
+
 _SCRIPT_PROMPT = """\
 <instructions>
 You are a podcast script writer for "{podcast_name}", a show that turns research questions
@@ -26,9 +64,14 @@ Rules:
 - Include natural verbal fillers ("right", "exactly", "you know", "huh") for realism
 - Open with a hook that references the original question
 - Close with a brief summary and 1-2 open questions for future episodes
+- Follow the episode outline below — treat it as a beat sheet, not a script
 - Target length: {word_count} words of dialogue
 - Tone: informative and engaging — never dry, never oversimplified
 </instructions>
+
+<episode_outline>
+{outline}
+</episode_outline>
 
 <background_information>
 {context}
@@ -136,7 +179,7 @@ If no corrections are needed, return the script unchanged.
 </script>"""
 
 
-def generate_script(context: str, config: dict, brief: str = "") -> list[ScriptLine]:
+def generate_script(context: str, config: dict, brief: str = "", outline: str = "") -> list[ScriptLine]:
     client = anthropic.Anthropic()
 
     message = client.messages.create(
@@ -147,6 +190,7 @@ def generate_script(context: str, config: dict, brief: str = "") -> list[ScriptL
             "content": _SCRIPT_PROMPT.format(
                 podcast_name=config.get("podcast_name", "Notecast"),
                 word_count=config.get("script", {}).get("word_count", 3000),
+                outline=outline or "No outline provided — use your judgment on episode structure.",
                 context=context,
             ),
         }],

@@ -111,11 +111,20 @@ def main(
         for url in sources:
             typer.echo(f"  {url}")
 
+        # ── Stage 3: Episode outline ──────────────────────────────────────────
+        from src.script.generator import generate_outline, generate_script
+
+        typer.echo("\nGenerating episode outline…")
+        outline = generate_outline(question=question, brief=state["brief"], config=config)
+        typer.echo(f"Outline: {len(outline.split())} words")
+        (cache_dir / "outline.md").write_text(outline)
+
         brief_path = cache_dir / "brief.json"
         brief_path.write_text(json.dumps({
             "question": question,
             "sub_queries": state["sub_queries"],
             "brief": state["brief"],
+            "outline": outline,
             "sources": sources,
         }, indent=2))
         typer.echo(f"Brief saved → {brief_path}")
@@ -123,20 +132,19 @@ def main(
         if dry_run:
             typer.echo("\n[dry-run] Halting before audio generation.")
             typer.echo(f"\n{state['brief']}")
+            typer.echo(f"\n--- Outline ---\n{outline}")
             return
 
-        # ── Stage 3: Script generation ────────────────────────────────────────
-        from src.script.generator import generate_script
-
+        # ── Stage 4: Script generation ────────────────────────────────────────
         typer.echo("\nGenerating script…")
-        script_lines = generate_script(context=state["script_context"], config=config, brief=state["brief"])
+        script_lines = generate_script(context=state["script_context"], config=config, brief=state["brief"], outline=outline)
         word_count = sum(len(l.text.split()) for l in script_lines)
         typer.echo(f"Script: {len(script_lines)} lines, {word_count} words")
         _save_script(script_lines, script_cache)
 
         brief = state["brief"]
 
-    # ── Stage 4: TTS synthesis ────────────────────────────────────────────────
+    # ── Stage 5: TTS synthesis ────────────────────────────────────────────────
     from src.tts.synthesizer import synthesize
 
     audio_path = out_dir / "audio" / f"{slug}.mp3"
@@ -195,7 +203,7 @@ def _upload_and_update_feed(audio_path: Path, question: str, brief: str, config:
         out_dir = cache_dir.parent.parent
         episode_dir = out_dir / "episodes" / f"{episode_number:03d}"
         episode_dir.mkdir(parents=True, exist_ok=True)
-        for fname in ("script.json", "brief.json"):
+        for fname in ("script.json", "brief.json", "outline.md"):
             src = cache_dir / fname
             if src.exists():
                 shutil.copy2(src, episode_dir / fname)
